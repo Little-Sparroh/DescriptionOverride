@@ -7,11 +7,11 @@ using System.Reflection;
 
 [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
 [MycoMod(null, ModFlags.IsClientSide)]
-public class DescriptionOverridePlugin : BaseUnityPlugin
+public class SparrohPlugin : BaseUnityPlugin
 {
     public const string PluginGUID = "sparroh.descriptionoverride";
     public const string PluginName = "DescriptionOverride";
-    public const string PluginVersion = "1.0.1";
+    public const string PluginVersion = "1.0.2";
 
     internal static ConfigEntry<bool> EnableOverride;
     internal static new ManualLogSource Logger;
@@ -22,16 +22,32 @@ public class DescriptionOverridePlugin : BaseUnityPlugin
     {
         Logger = base.Logger;
 
-        EnableOverride = Config.Bind("General", "EnableDescriptionOverride", true, "If true, uses the serialized _description field instead of TextBlocks.");
+        try
+        {
+            EnableOverride = Config.Bind("General", "EnableDescriptionOverride", true, "If true, uses the serialized _description field instead of TextBlocks.");
 
-        harmony = new Harmony(PluginGUID);
-        harmony.PatchAll();
-        Logger.LogInfo($"{PluginName} loaded successfully.");
+            harmony = new Harmony(PluginGUID);
+            harmony.PatchAll();
+            Logger.LogInfo($"{PluginName} loaded successfully.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Failed to initialize {PluginName}: {ex.Message}");
+            Logger.LogDebug(ex.ToString());
+        }
     }
 
     private void OnDestroy()
     {
-        harmony?.UnpatchSelf();
+        try
+        {
+            harmony?.UnpatchSelf();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Failed to unpatch {PluginName}: {ex.Message}");
+            Logger.LogDebug(ex.ToString());
+        }
     }
 }
 
@@ -40,8 +56,17 @@ public static class DescriptionPatch
 {
     static bool Prefix(Upgrade __instance, ref string __result)
     {
-        if (!DescriptionOverridePlugin.EnableOverride.Value)
+        try
+        {
+            if (!SparrohPlugin.EnableOverride.Value)
+                return true;
+        }
+        catch (Exception ex)
+        {
+            SparrohPlugin.Logger.LogError($"Failed to access config value: {ex.Message}");
+            SparrohPlugin.Logger.LogDebug(ex.ToString());
             return true;
+        }
 
         string rawDesc = null;
         FieldInfo descField = null;
@@ -63,6 +88,8 @@ public static class DescriptionPatch
         }
         catch (Exception ex)
         {
+            SparrohPlugin.Logger.LogError($"Failed to access description field for {__instance.GetType().Name}: {ex.Message}");
+            SparrohPlugin.Logger.LogDebug(ex.ToString());
         }
 
         if (!string.IsNullOrEmpty(rawDesc))
